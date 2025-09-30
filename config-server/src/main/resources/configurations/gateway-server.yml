@@ -1,0 +1,30 @@
+server:
+  port: 8222
+spring:
+  cloud:
+    gateway:
+      server:
+        webflux:
+          discovery:
+            locator:
+              enabled: true
+              lower-case-service-id: true
+          routes:
+            - id: user-service
+              uri: lb://user-service
+              predicates:
+                - Path=/user/**
+            - id: deposit-service
+              uri: lb://deposit-service
+              predicates:
+                - Path=/deposit/**,/withdrawal/**,/transfer/**
+            - id: withdrawal-service
+              uri: lb://withdrawal-service
+              predicates:
+                - Path=/withdraw/**
+            - id: transfer-service
+              uri: lb://transfer-service
+              predicates:
+                - Path=/transfer/**
+
+
