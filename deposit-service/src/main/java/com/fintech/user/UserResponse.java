@@ -1,7 +1,7 @@
 package com.fintech.user;
 
 public record UserResponse(
-        Integer id,
+        String  id,
         String firstName,
         String lastName,
         String email,

@@ -23,6 +23,13 @@ public class NotificationProducer {
                 .setHeader(TOPIC, "withdrawal-topic")
                 .build();
 
-        kafkaTemplate.send(message);
+        kafkaTemplate.send(message)
+                .whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        log.error("Unable to send message to withdrawal-topic: {}", ex.getMessage(), ex);
+                    } else {
+                        log.info("Message sent to withdrawal-topic with offset {}", result.getRecordMetadata().offset());
+                    }
+                });
     }
 }

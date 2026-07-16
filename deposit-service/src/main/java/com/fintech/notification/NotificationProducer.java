@@ -23,7 +23,14 @@ public class NotificationProducer {
                 .setHeader(TOPIC, "deposit-topic")
                 .build();
 
-        kafkaTemplate.send(message);
+        kafkaTemplate.send(message)
+                .whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        log.error("Unable to send message to deposit-topic: {}", ex.getMessage(), ex);
+                    } else {
+                        log.info("Message sent to deposit-topic with offset {}", result.getRecordMetadata().offset());
+                    }
+                });
     }
 
 }

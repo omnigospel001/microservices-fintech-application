@@ -21,7 +21,7 @@ public class TransferController {
    private final TransferService transferService;
 
     @PutMapping
-    public ResponseEntity<TransferResponse> withdrawal(@RequestBody @Valid TransferRequest transferRequest) {
+    public ResponseEntity<TransferResponse> transfer(@RequestBody @Valid TransferRequest transferRequest) {
         return ResponseEntity.ok().body(transferService.transfer(transferRequest));
     }
 

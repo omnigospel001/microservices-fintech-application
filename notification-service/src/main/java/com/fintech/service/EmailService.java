@@ -2,6 +2,7 @@ package com.fintech.service;
 
 import com.fintech.mailcontent.EmailBody;
 import com.fintech.response.DepositNotificationResponse;
+import com.fintech.response.SettlementNotificationResponse;
 import com.fintech.response.TransferNotificationResponse;
 import com.fintech.response.WithdrawalNotificationResponse;
 import jakarta.mail.internet.MimeMessage;
@@ -27,7 +28,7 @@ public class EmailService {
     @Value("${spring.mail.subject}")
     private String subjectEmail;
 
-    @Value("${spring.company.name}")
+    @Value("${spring.mail.company.name}")
     private String companyName;
 
 
@@ -45,8 +46,10 @@ public class EmailService {
             messageHelper.setText(emailBody.depositCreditAlertEmailBody(depositNotificationResponse), true);
 
             mailSender.send(message);
+            log.info("Deposit email notification sent successfully to {}", depositNotificationResponse.userEmail());
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("Failed to send deposit email notification to {}: {}", depositNotificationResponse.userEmail(), e.getMessage(), e);
+            throw new RuntimeException("Failed to send deposit email notification", e);
         }
 
     }
@@ -64,8 +67,10 @@ public class EmailService {
             messageHelper.setText(emailBody.withdrawalDebitAlertEmailBody(withdrawalNotificationResponse), true);
 
             mailSender.send(message);
+            log.info("Withdrawal email notification sent successfully to {}", withdrawalNotificationResponse.userEmail());
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("Failed to send withdrawal email notification to {}: {}", withdrawalNotificationResponse.userEmail(), e.getMessage(), e);
+            throw new RuntimeException("Failed to send withdrawal email notification", e);
         }
 
     }
@@ -83,8 +88,10 @@ public class EmailService {
             messageHelper.setText(emailBody.creditAlertEmailBody(transferNotificationResponse), true);
 
             mailSender.send(message);
+            log.info("Transfer credit email notification sent successfully to {}", transferNotificationResponse.receiverEmail());
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("Failed to send transfer credit email notification to {}: {}", transferNotificationResponse.receiverEmail(), e.getMessage(), e);
+            throw new RuntimeException("Failed to send transfer credit email notification", e);
         }
 
     }
@@ -103,8 +110,31 @@ public class EmailService {
             messageHelper.setText(emailBody.debitAlertEmailBody(transferNotificationResponse), true);
 
             mailSender.send(message);
+            log.info("Transfer debit email notification sent successfully to {}", transferNotificationResponse.senderEmail());
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("Failed to send transfer debit email notification to {}: {}", transferNotificationResponse.senderEmail(), e.getMessage(), e);
+            throw new RuntimeException("Failed to send transfer debit email notification", e);
+        }
+
+    }
+
+    public void sendSettlementEmailNotification(SettlementNotificationResponse settlementNotificationResponse) {
+
+        try {
+
+            MimeMessage message = mailSender.createMimeMessage();
+            var messageHelper = new MimeMessageHelper(message);
+
+            messageHelper.setFrom(companyEmail, companyName);
+            messageHelper.setTo(settlementNotificationResponse.email());
+            messageHelper.setSubject(subjectEmail);
+            messageHelper.setText(emailBody.settlementAlertEmailBody(settlementNotificationResponse), true);
+
+            mailSender.send(message);
+            log.info("Settlement email notification sent successfully to {}", settlementNotificationResponse.email());
+        } catch (Exception e) {
+            log.error("Failed to send settlement email notification to {}: {}", settlementNotificationResponse.email(), e.getMessage(), e);
+            throw new RuntimeException("Failed to send settlement email notification", e);
         }
 
     }

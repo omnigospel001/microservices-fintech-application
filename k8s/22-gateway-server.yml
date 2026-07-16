@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-server
+  namespace: fintech
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway-server
+  template:
+    metadata:
+      labels:
+        app: gateway-server
+    spec:
+      containers:
+        - name: gateway-server
+          image: fintech-microservices-gateway-server:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8222
+          env:
+            - name: CONFIG_SERVER_URI
+              value: "optional:configserver:http://config-server:8888"
+            - name: EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE
+              value: "http://discovery-server:8761/eureka"
+            - name: EUREKA_INSTANCE_HOSTNAME
+              value: "gateway-server"
+            - name: EUREKA_INSTANCE_PREFER_IP_ADDRESS
+              value: "true"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: fintech-secrets
+                  key: jwt-secret
+          readinessProbe:
+            tcpSocket:
+              port: 8222
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8222
+            initialDelaySeconds: 60
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-server
+  namespace: fintech
+spec:
+  selector:
+    app: gateway-server
+  ports:
+    - port: 8222
+      targetPort: 8222
+  type: ClusterIP

@@ -1,0 +1,12 @@
+# Ignore build artifacts and IDE files to keep Docker build context small
+target/
+.idea/
+*.iml
+*.cmd
+.mvn/
+mvnw
+mvnw.bat
+.git/
+.gitattributes
+.gitignore
+*.md

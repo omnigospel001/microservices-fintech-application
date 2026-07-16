@@ -18,7 +18,7 @@ public class WithdrawalRequest {
     @Positive(message = "Amount must be positive number")
     private BigDecimal withdrawalAmount;
 
-    @NotBlank(message = "deposit Id is required")
+    @NotNull(message = "deposit Id is required")
     private Integer depositId;
 
     @NotBlank(message = "user Id is required")

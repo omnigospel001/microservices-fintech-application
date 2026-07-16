@@ -1,13 +1,18 @@
+name: fintech-microservices
+
 services:
+  # ========== Infrastructure ==========
   postgresql:
     container_name: ms_pg_sql
     image: postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: rootpass
+      POSTGRES_DB: deposit
       PGDATA: /data/postgres
     volumes:
       - postgres:/data/postgres
+      - ./init-multiple-dbs.sql:/docker-entrypoint-initdb.d/init-multiple-dbs.sql:ro
     ports:
       - "5432:5432"
     networks:
@@ -30,7 +35,7 @@ services:
     restart: unless-stopped
 
   zipkin:
-    container_name: zipkin_ms
+    container_name: zipkin_ms-1
     image: openzipkin/zipkin
     ports:
       - "9411:9411"
@@ -68,35 +73,258 @@ services:
     networks:
       - microservices-net
 
-  zookeeper:
-    image: confluentinc/cp-zookeeper:latest
-    container_name: zookeeper_ms
-    environment:
-      ZOOKEEPER_SERVER_ID: 1
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - "22181:2181"
-    networks:
-      - microservices-net
   kafka:
-    image: confluentinc/cp-kafka:latest
+    image: confluentinc/cp-kafka:7.4.0
     container_name: ms_kafka_ms
     ports:
       - "9092:9092"
-    depends_on:
-      - zookeeper
     environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://ms_kafka_ms:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@ms_kafka_ms:29093
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    volumes:
+      - kafka_data:/var/lib/kafka/data
     networks:
       - microservices-net
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
 
+  # ========== Spring Boot Services ==========
+  config-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: config-server
+    container_name: config-server
+    ports:
+      - "8888:8888"
+    networks:
+      - microservices-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  discovery-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: discovery-server
+    container_name: discovery-server
+    ports:
+      - "8761:8761"
+    environment:
+      - CONFIG_SERVER_URI=optional:configserver:http://config-server:8888
+      - EUREKA_INSTANCE_HOSTNAME=discovery-server
+    depends_on:
+      config-server:
+        condition: service_healthy
+    networks:
+      - microservices-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+
+  user-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: user-service
+    container_name: user-service
+    ports:
+      - "8091:8091"
+    environment:
+      - CONFIG_SERVER_URI=optional:configserver:http://config-server:8888
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka
+      - EUREKA_INSTANCE_HOSTNAME=user-service
+      - SPRING_DATA_MONGODB_HOST=mongodb
+    depends_on:
+      config-server:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+      mongodb:
+        condition: service_started
+    networks:
+      - microservices-net
+
+  deposit-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: deposit-service
+    container_name: deposit-service
+    ports:
+      - "8070:8070"
+    environment:
+      - CONFIG_SERVER_URI=optional:configserver:http://config-server:8888
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka
+      - EUREKA_INSTANCE_HOSTNAME=deposit-service
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://ms_pg_sql:5432/deposit
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=ms_kafka_ms:29092
+      - SPRING_KAFKA_PRODUCER_BOOTSTRAP_SERVERS=ms_kafka_ms:29092
+    depends_on:
+      config-server:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+      postgresql:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  withdrawal-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: withdrawal-service
+    container_name: withdrawal-service
+    ports:
+      - "9029:9029"
+    environment:
+      - CONFIG_SERVER_URI=optional:configserver:http://config-server:8888
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka
+      - EUREKA_INSTANCE_HOSTNAME=withdrawal-service
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=ms_kafka_ms:29092
+      - SPRING_KAFKA_PRODUCER_BOOTSTRAP_SERVERS=ms_kafka_ms:29092
+    depends_on:
+      config-server:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  transfer-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: transfer-service
+    container_name: transfer-service
+    ports:
+      - "8475:8475"
+    environment:
+      - CONFIG_SERVER_URI=optional:configserver:http://config-server:8888
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka
+      - EUREKA_INSTANCE_HOSTNAME=transfer-service
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://ms_pg_sql:5432/transfer
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=ms_kafka_ms:29092
+      - SPRING_KAFKA_PRODUCER_BOOTSTRAP_SERVERS=ms_kafka_ms:29092
+    depends_on:
+      config-server:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+      postgresql:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: notification-service
+    container_name: notification-service
+    ports:
+      - "8040:8040"
+    environment:
+      - CONFIG_SERVER_URI=optional:configserver:http://config-server:8888
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka
+      - EUREKA_INSTANCE_HOSTNAME=notification-service
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=ms_kafka_ms:29092
+      - SPRING_KAFKA_CONSUMER_BOOTSTRAP_SERVERS=ms_kafka_ms:29092
+    depends_on:
+      config-server:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  settlement-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: settlement-service
+    container_name: settlement-service
+    ports:
+      - "8060:8060"
+    environment:
+      - CONFIG_SERVER_URI=optional:configserver:http://config-server:8888
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka
+      - EUREKA_INSTANCE_HOSTNAME=settlement-service
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://ms_pg_sql:5432/settlement
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=ms_kafka_ms:29092
+      - SPRING_KAFKA_CONSUMER_BOOTSTRAP_SERVERS=ms_kafka_ms:29092
+      - SPRING_KAFKA_PRODUCER_BOOTSTRAP_SERVERS=ms_kafka_ms:29092
+    depends_on:
+      config-server:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+      postgresql:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  gateway-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: gateway-server
+    container_name: gateway-server
+    ports:
+      - "8222:8222"
+    environment:
+      - CONFIG_SERVER_URI=optional:configserver:http://config-server:8888
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka
+      - EUREKA_INSTANCE_HOSTNAME=gateway-server
+    depends_on:
+      config-server:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+    networks:
+      - microservices-net
 
 networks:
   microservices-net:
@@ -106,3 +334,4 @@ volumes:
   postgres:
   pgadmin:
   mongo:
+  kafka_data:

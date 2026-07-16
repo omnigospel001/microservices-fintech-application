@@ -18,3 +18,8 @@ spring:
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
         spring.json.type.mapping: depositNotificationResponse:com.fintech.notification.DepositNotificationRequest
+
+
+logging:
+  level:
+    org.springframework.boot.autoconfigure.jdbc: DEBUG

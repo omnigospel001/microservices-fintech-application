@@ -13,6 +13,6 @@ public interface UserClient {
     Optional<SenderResponse> findByUserId(@PathVariable("id") String userId);
 
     @GetMapping("/user/account/{accountNumber}")
-    Optional<ReceiverResponse> findByAccountNumber(@PathVariable("accountNumber") Long receiverAccountNumber);
+    Optional<ReceiverResponse> findByAccountNumber(@PathVariable("accountNumber") Long accountNumber);
 
 }

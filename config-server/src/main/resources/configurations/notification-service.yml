@@ -1,23 +1,21 @@
 server:
   port: 8040
+
 spring:
   kafka:
     consumer:
       bootstrap-servers: localhost:9092
-      group-id: depositGroup,withdrawalGroup,transferGroup
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: '*'
-        spring.json.type.mapping: depositNotificationResponse:com.fintech.response.DepositNotificationResponse,withdrawalNotificationResponse:com.fintech.response.WithdrawalNotificationResponse,transferNotificationResponse:com.fintech.response.TransferNotificationResponse
-
-
+        spring.json.type.mapping: depositNotificationResponse:com.fintech.response.DepositNotificationResponse,withdrawalNotificationResponse:com.fintech.response.WithdrawalNotificationResponse,transferNotificationResponse:com.fintech.response.TransferNotificationResponse,settlementNotificationResponse:com.fintech.response.SettlementNotificationResponse
   mail:
     host: smtp.gmail.com
     port: 587
-    username: gospel@gmail.com
-    password: password
+    username: gosmajesty@gmail.com
+    password: noaexrabuvxhdbqb
     protocol: smtp
     subject: FinTech Alert
     properties:
@@ -27,6 +25,8 @@ spring:
           auth: true
           starttls:
             enable: true
-  company:
-    name: Gospel's FinTech App
 
+Debug: true
+
+#  company:
+#    name: Gospel's FinTech App

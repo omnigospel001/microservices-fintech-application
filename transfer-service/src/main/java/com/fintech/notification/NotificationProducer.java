@@ -23,6 +23,13 @@ public class NotificationProducer {
                 .setHeader(TOPIC, "transfer-topic")
                 .build();
 
-        kafkaTemplate.send(message);
+        kafkaTemplate.send(message)
+                .whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        log.error("Unable to send message to transfer-topic: {}", ex.getMessage(), ex);
+                    } else {
+                        log.info("Message sent to transfer-topic with offset {}", result.getRecordMetadata().offset());
+                    }
+                });
     }
 }

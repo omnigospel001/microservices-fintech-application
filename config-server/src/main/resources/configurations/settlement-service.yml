@@ -1,0 +1,33 @@
+server:
+  port: 8060
+
+spring:
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5432/settlement
+    username: postgres
+    password: rootpass
+  jpa:
+    hibernate:
+      ddl-auto: update
+    database: postgresql
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+  kafka:
+    producer:
+      bootstrap-servers: localhost:9092
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.type.mapping: settlementNotificationResponse:com.fintech.notification.SettlementNotificationRequest
+    consumer:
+      bootstrap-servers: localhost:9092
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: '*'
+        spring.json.type.mapping: depositNotificationResponse:com.fintech.notification.DepositNotificationRequest,withdrawalNotificationResponse:com.fintech.notification.WithdrawalNotificationRequest,transferNotificationResponse:com.fintech.notification.TransferNotificationRequest
+
+logging:
+  level:
+    org.springframework.boot.autoconfigure.jdbc: DEBUG

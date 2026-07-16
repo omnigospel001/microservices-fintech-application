@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: withdrawal-service
+  namespace: fintech
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: withdrawal-service
+  template:
+    metadata:
+      labels:
+        app: withdrawal-service
+    spec:
+      containers:
+        - name: withdrawal-service
+          image: fintech-microservices-withdrawal-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 9029
+          env:
+            - name: CONFIG_SERVER_URI
+              value: "optional:configserver:http://config-server:8888"
+            - name: EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE
+              value: "http://discovery-server:8761/eureka"
+            - name: EUREKA_INSTANCE_HOSTNAME
+              value: "withdrawal-service"
+            - name: EUREKA_INSTANCE_PREFER_IP_ADDRESS
+              value: "true"
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              value: "kafka:29092"
+            - name: SPRING_KAFKA_PRODUCER_BOOTSTRAP_SERVERS
+              value: "kafka:29092"
+          readinessProbe:
+            tcpSocket:
+              port: 9029
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 9029
+            initialDelaySeconds: 60
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: withdrawal-service
+  namespace: fintech
+spec:
+  selector:
+    app: withdrawal-service
+  ports:
+    - port: 9029
+      targetPort: 9029
+  type: ClusterIP

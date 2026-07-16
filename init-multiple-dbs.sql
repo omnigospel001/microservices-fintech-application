@@ -1,0 +1,5 @@
+CREATE DATABASE transfer;
+GRANT ALL PRIVILEGES ON DATABASE transfer TO postgres;
+
+CREATE DATABASE settlement;
+GRANT ALL PRIVILEGES ON DATABASE settlement TO postgres;

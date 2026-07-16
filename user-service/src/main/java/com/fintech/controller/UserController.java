@@ -1,7 +1,9 @@
 package com.fintech.controller;
 
 import com.fintech.entity.User;
+import com.fintech.request.LoginRequest;
 import com.fintech.request.UserRequest;
+import com.fintech.response.LoginResponse;
 import com.fintech.response.UserResponse;
 import com.fintech.service.UserService;
 import jakarta.validation.Valid;
@@ -21,6 +23,11 @@ public class UserController {
     @PostMapping("/save")
     public ResponseEntity<User> saveUser(@RequestBody @Valid UserRequest userRequest) {
         return ResponseEntity.ok().body(userService.saveUser(userRequest));
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<LoginResponse> login(@RequestBody @Valid LoginRequest loginRequest) {
+        return ResponseEntity.ok(userService.login(loginRequest));
     }
 
     @GetMapping("/{id}")

@@ -7,10 +7,12 @@ import com.fintech.repository.DepositRepo;
 import com.fintech.entity.Deposit;
 import com.fintech.request.DepositRequest;
 import com.fintech.user.UserClient;
+import com.fintech.user.UserResponse;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.persistence.Query;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +22,7 @@ import java.time.LocalDateTime;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class DepositService {
 
     private final DepositRepo depositRepo;
@@ -31,6 +34,8 @@ public class DepositService {
     public Deposit deposit(DepositRequest depositRequest) {
       var user = userClient.findByUserId(depositRequest.getUserId())
                 .orElseThrow(() -> new EntityNotFoundException("User not found"));
+
+      log.info("User info retrieved {}", user);
 
       var deposit = mapper.mapDeposit(depositRequest);
       depositRepo.save(deposit);
@@ -57,8 +62,11 @@ public class DepositService {
         var user = userClient.findByUserId(userId)
                 .orElseThrow(() -> new EntityNotFoundException("User not found"));
 
-       Query query = entityManager.createNativeQuery("UPDATE deposit SET deposit_amount = deposit_amount - "+ withdrawalAmount +" WHERE id =:depositId AND user_id =:userId");
+        validateSufficientBalance(userId, withdrawalAmount);
 
+       Query query = entityManager.createNativeQuery("UPDATE deposit SET deposit_amount = deposit_amount - :withdrawalAmount WHERE id = :depositId AND user_id = :userId");
+
+       query.setParameter("withdrawalAmount", withdrawalAmount);
        query.setParameter("depositId", deposit.getId());
        query.setParameter("userId", user.id());
 
@@ -76,40 +84,54 @@ public class DepositService {
         var user = userClient.findByUserId(userId)
                 .orElseThrow(() -> new EntityNotFoundException("User not found"));
 
-        Query query = entityManager.createNativeQuery("UPDATE deposit SET deposit_amount = deposit_amount - "+ transferAmount +" WHERE id =:depositId AND user_id =:userId");
+        validateSufficientBalance(userId, transferAmount);
 
+        Query query = entityManager.createNativeQuery("UPDATE deposit SET deposit_amount = deposit_amount - :transferAmount WHERE id = :depositId AND user_id = :userId");
+
+        query.setParameter("transferAmount", transferAmount);
         query.setParameter("depositId", deposit.getId());
         query.setParameter("userId", user.id());
 
         query.executeUpdate();
 
-        isDepositAmountLow(userId);
         return deposit;
 
     }
 
-    public void isDepositAmountLow(String userId) {
+    public void validateSufficientBalance(String userId, BigDecimal requestedAmount) {
 
         var user = userClient.findByUserId(userId)
                 .orElseThrow(() -> new EntityNotFoundException("User not found"));
 
-        //Check the sender current amount is less than the transfer amount
-        Query query  =  entityManager.createNativeQuery("SELECT SUM(deposit_amount) FROM deposit WHERE user_id =:user_id" );
+        Query query = entityManager.createNativeQuery("SELECT COALESCE(SUM(deposit_amount), 0) FROM deposit WHERE user_id = :user_id");
         query.setParameter("user_id", user.id());
 
-        double totalAmount = ((BigDecimal) query.getSingleResult()).doubleValue();
+        BigDecimal totalAmount = (BigDecimal) query.getSingleResult();
 
-        double LIMIT_DEPOSIT_AMOUNT = 50.00;
-        if (totalAmount <= LIMIT_DEPOSIT_AMOUNT){
+        if (totalAmount.compareTo(requestedAmount) < 0) {
             throw new RuntimeException("Insufficient balance");
         }
 
     }
 
-    public void creditTheReceiver(Long receiverAccountNumber, BigDecimal transferAmount) {
+    public BigDecimal getBalance(String userId) {
+        var user = userClient.findByUserId(userId)
+                .orElseThrow(() -> new EntityNotFoundException("User not found"));
 
+        Query query = entityManager.createNativeQuery("SELECT COALESCE(SUM(deposit_amount), 0) FROM deposit WHERE user_id = :user_id");
+        query.setParameter("user_id", user.id());
+
+        return (BigDecimal) query.getSingleResult();
+    }
+
+    public UserResponse creditTheReceiver(Long receiverAccountNumber, BigDecimal transferAmount) {
+
+        log.info("AccountNumber: {}", receiverAccountNumber);
         var user = userClient.findByAccountNumber(receiverAccountNumber)
                 .orElseThrow(() -> new EntityNotFoundException("User not found"));
+
+        log.info("User AccountNumber: {}", receiverAccountNumber);
+
 
         Query insertIntoDeposit = entityManager.createNativeQuery("INSERT INTO deposit (deposit_amount, user_id, create_date) VALUES(:deposit_amount, :user_id, :create_date) " ) ;
 
@@ -118,6 +140,8 @@ public class DepositService {
         insertIntoDeposit.setParameter("create_date", LocalDateTime.now());
 
         insertIntoDeposit.executeUpdate();
+
+        return user;
     }
 
 }

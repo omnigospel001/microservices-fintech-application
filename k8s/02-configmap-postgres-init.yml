@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-scripts
+  namespace: fintech
+data:
+  init-multiple-dbs.sql: |
+    CREATE DATABASE transfer;
+    GRANT ALL PRIVILEGES ON DATABASE transfer TO postgres;
+
+    CREATE DATABASE settlement;
+    GRANT ALL PRIVILEGES ON DATABASE settlement TO postgres;

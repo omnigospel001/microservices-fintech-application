@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deposit-service
+  namespace: fintech
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: deposit-service
+  template:
+    metadata:
+      labels:
+        app: deposit-service
+    spec:
+      containers:
+        - name: deposit-service
+          image: fintech-microservices-deposit-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8070
+          env:
+            - name: CONFIG_SERVER_URI
+              value: "optional:configserver:http://config-server:8888"
+            - name: EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE
+              value: "http://discovery-server:8761/eureka"
+            - name: EUREKA_INSTANCE_HOSTNAME
+              value: "deposit-service"
+            - name: EUREKA_INSTANCE_PREFER_IP_ADDRESS
+              value: "true"
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:postgresql://postgresql:5432/deposit"
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: fintech-secrets
+                  key: postgres-user
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fintech-secrets
+                  key: postgres-password
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              value: "kafka:29092"
+            - name: SPRING_KAFKA_PRODUCER_BOOTSTRAP_SERVERS
+              value: "kafka:29092"
+          readinessProbe:
+            tcpSocket:
+              port: 8070
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8070
+            initialDelaySeconds: 60
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: deposit-service
+  namespace: fintech
+spec:
+  selector:
+    app: deposit-service
+  ports:
+    - port: 8070
+      targetPort: 8070
+  type: ClusterIP

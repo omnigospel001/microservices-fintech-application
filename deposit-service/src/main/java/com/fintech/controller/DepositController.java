@@ -6,10 +6,9 @@ import com.fintech.service.DepositService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.math.BigDecimal;
 
 @RestController
 @RequestMapping("/deposit")
@@ -23,6 +22,9 @@ public class DepositController {
         return ResponseEntity.ok().body(depositService.deposit(depositRequest));
     }
 
-
+    @GetMapping("/balance/{userId}")
+    public ResponseEntity<BigDecimal> getBalance(@PathVariable String userId) {
+        return ResponseEntity.ok(depositService.getBalance(userId));
+    }
 
 }
